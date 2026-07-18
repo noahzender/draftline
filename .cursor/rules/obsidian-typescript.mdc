@@ -1,0 +1,32 @@
+---
+description: Safe Obsidian API, lifecycle, command, and mobile patterns
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# Obsidian TypeScript
+
+- Use strict TypeScript and browser-compatible dependencies. Node.js/Electron requires an explicit desktop-only decision.
+- Use `this.app`, not global `app` or `window.app`.
+- Register events, DOM events, intervals, and editor extensions with the plugin's cleanup helpers.
+- Keep command IDs stable and unique. Do not set default hotkeys.
+- Choose `callback`, `checkCallback`, `editorCallback`, or `editorCheckCallback` according to availability.
+- Build user-derived UI with DOM/Obsidian helpers; never interpolate it into `innerHTML`, `outerHTML`, or `insertAdjacentHTML`.
+
+Use the narrow safe mutation API:
+
+```ts
+const file = this.app.vault.getFileByPath(normalizePath(userPath));
+if (!file) {
+	throw new Error('The requested note does not exist.');
+}
+await this.app.vault.process(file, (content) => update(content));
+await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+	frontmatter.status = 'done';
+});
+```
+
+- Use Editor APIs for the active note, `Vault.process` for background note updates, and `processFrontMatter` for frontmatter.
+- Prefer Vault APIs over Adapter APIs.
+- Look up known paths directly; do not search `getFiles()` for a path.
+- Keep `onload` light and debounce expensive file-event work.

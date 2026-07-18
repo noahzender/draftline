@@ -1,0 +1,33 @@
+---
+description: Prevent secrets, private data, and internal information from entering this public repository
+alwaysApply: true
+---
+
+# Open-source safety
+
+Treat every tracked file, commit, issue, log, fixture, screenshot, and generated artifact as publicly visible.
+
+## Never add
+
+- Secrets: API keys, tokens, passwords, cookies, private keys, connection strings, or signed URLs.
+- Secret-bearing files such as `.env*` (except sanitized templates), credentials files, key stores, private certificates, or cloud/SSH configs.
+- Customer, employee, or user data; private communications; support content; meeting notes; analytics exports; or proprietary documents.
+- Internal hostnames, private repository links, non-public architecture details, account IDs, or local paths that expose a person's username.
+
+## Required behavior
+
+- Externalize runtime secrets through a secrets manager or deployment-injected environment variables. Prefer short-lived, least-privilege credentials.
+- Use obvious placeholders such as `YOUR_API_KEY` and synthetic example data.
+- Keep `.env.example` and other templates limited to placeholders or demonstrably non-sensitive defaults.
+- Do not copy content from private services (including Slack, Granola, Notion, Linear, CRM, support, or analytics tools) into the repo unless the user confirms that exact content is approved for publication.
+- Treat logs, test fixtures, database dumps, screenshots, recordings, archives, binaries, source maps, and generated files as potential leak sources.
+- Before committing or publishing, inspect staged, unstaged, untracked, generated, and binary files, and verify risky file types are ignored.
+- Use layered automated secret scanning: locally before commit, in CI for pull requests, and repository-host push protection. Do not rely on `.gitignore` or manual review alone.
+- If content previously lived in a private repository, scan the full Git history before publication.
+- Never bypass a scanner unless the match is verified as a false positive and the bypass contains no sensitive value.
+- Do not print discovered secrets in chat, command arguments, shell history, logs, diffs, or error messages. Refer to the file and redact the value.
+- If a value might be sensitive, stop and ask before adding it.
+
+## If exposure is found
+
+Treat a committed secret as compromised: stop publication, alert the user without repeating the value, and revoke or rotate it immediately. Then remove it from the current tree and assess history cleanup. Rewriting history does not make an exposed credential safe and must be coordinated because forks, clones, pull requests, and caches may retain copies.

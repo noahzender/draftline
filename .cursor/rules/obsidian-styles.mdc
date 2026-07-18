@@ -1,0 +1,22 @@
+---
+description: Theme-compatible styling for Obsidian plugin interfaces
+globs: "**/*.css"
+alwaysApply: false
+---
+
+# Obsidian styles
+
+- Scope classes under a plugin-specific root to avoid collisions.
+- Use Obsidian CSS variables for colors, typography, spacing, borders, and interactive states.
+- Put presentation in CSS classes; do not set hardcoded inline styles from TypeScript.
+- Support light, dark, and high-contrast themes without assuming fixed background colors.
+- Avoid broad element selectors that affect Obsidian or other plugins.
+
+```css
+.draftline-warning {
+	color: var(--text-normal);
+	background: var(--background-modifier-error);
+}
+```
+
+Test changed UI in desktop and mobile layouts with light and dark themes.
