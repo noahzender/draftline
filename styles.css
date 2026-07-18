@@ -1,0 +1,170 @@
+/* Draftline — theme-compatible styles */
+
+/* Hide inactive version callouts in Live Preview / Reading View */
+.callout[data-callout="draftline-version"] {
+	display: none !important;
+}
+
+/* Make the active Draftline callout look like normal note content */
+.callout[data-callout="draftline-active"] {
+	--callout-color: transparent;
+	--callout-icon: none;
+	background-color: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+
+.callout[data-callout="draftline-active"] .callout-title {
+	display: none !important;
+}
+
+.callout[data-callout="draftline-active"] .callout-content {
+	padding: 0 !important;
+	margin: 0 !important;
+	background: transparent !important;
+	border: none !important;
+}
+
+.callout[data-callout="draftline-active"] .callout-content > :first-child {
+	margin-top: 0;
+}
+
+/* CodeMirror hide helpers */
+.draftline-cm-hide-line {
+	display: none !important;
+}
+
+/* Inline diff */
+.draftline-diff-add {
+	background-color: rgba(var(--color-green-rgb, 68, 184, 84), 0.22);
+	border-radius: 2px;
+}
+
+.draftline-diff-del {
+	background-color: rgba(var(--color-red-rgb, 233, 49, 71), 0.22);
+	color: var(--text-muted);
+	text-decoration: line-through;
+	border-radius: 2px;
+	padding: 0 1px;
+}
+
+/* Version popover */
+.draftline-popover {
+	position: fixed;
+	z-index: 1000;
+	width: min(320px, calc(100vw - 24px));
+	max-height: min(420px, calc(100vh - 48px));
+	overflow: auto;
+	padding: 12px;
+	border-radius: var(--radius-m);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-l);
+	color: var(--text-normal);
+}
+
+.draftline-popover__create {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	justify-content: center;
+	margin-bottom: 10px;
+}
+
+.draftline-popover__icon {
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+}
+
+.draftline-popover__list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.draftline-popover__empty {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	padding: 8px 4px;
+}
+
+.draftline-popover__version {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	width: 100%;
+	text-align: left;
+	padding: 8px 10px;
+	border: none;
+	border-radius: var(--radius-s);
+	background: transparent;
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.draftline-popover__version:hover {
+	background: var(--background-modifier-hover);
+}
+
+.draftline-popover__version.is-active {
+	background: var(--background-modifier-hover);
+}
+
+.draftline-popover__radio {
+	display: inline-flex;
+	margin-top: 2px;
+	color: var(--text-muted);
+}
+
+.draftline-popover__radio.is-checked {
+	color: var(--interactive-accent);
+}
+
+.draftline-popover__version-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.draftline-popover__version-title {
+	font-weight: var(--font-semibold);
+}
+
+.draftline-popover__version-date {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.draftline-popover__badge {
+	align-self: flex-start;
+	margin-top: 2px;
+	padding: 0 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.draftline-popover__compare {
+	margin-top: 10px;
+	padding-top: 10px;
+	border-top: 1px solid var(--background-modifier-border);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.draftline-popover__compare-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.draftline-popover__baseline {
+	width: 100%;
+}
