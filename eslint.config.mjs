@@ -32,4 +32,15 @@ export default defineConfig(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		rules: {
+			'obsidianmd/ui/sentence-case': [
+				'warn',
+				{
+					enforceCamelCaseLower: true,
+					ignoreWords: ['Draftline'],
+				},
+			],
+		},
+	},
 );

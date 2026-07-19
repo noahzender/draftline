@@ -1,5 +1,6 @@
 import { MarkdownView, setIcon, ToggleComponent } from 'obsidian';
 import type DraftlinePlugin from '../main';
+import { isDraftlineEnabled } from '../settings-model';
 import type { VersionSnapshot, VersionedDocument } from '../version-format';
 import { formatCreatedAt } from '../utils/format-created-at';
 
@@ -19,6 +20,11 @@ export class VersionPopover {
 		anchor?: HTMLElement,
 		preloaded?: VersionedDocument | null,
 	): Promise<void> {
+		if (!isDraftlineEnabled(this.plugin.settings)) {
+			this.close();
+			return;
+		}
+
 		const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
 		const file = view?.file;
 		if (!view || !file) {

@@ -10,14 +10,19 @@ import {
 	type DraftlineEditorState,
 } from './editor/draftline-state';
 import { VersionedNoteService } from './services/versioned-note-service';
+import { DraftlineSettingTab } from './settings';
 import {
 	DEFAULT_SETTINGS,
-	DraftlineSettingTab,
+	isDraftlineEnabled,
+	mergeSettings,
 	type DraftlineSettings,
-} from './settings';
+} from './settings-model';
 import { ComparisonStateStore } from './state/comparison-state';
 import { VersionPopover } from './ui/version-popover';
-import { registerViewActions } from './ui/view-actions';
+import {
+	registerViewActions,
+	type ViewActionsController,
+} from './ui/view-actions';
 import {
 	isDraftlineDocument,
 	parseVersionedDocument,
@@ -31,6 +36,7 @@ export default class DraftlinePlugin extends Plugin {
 	popover!: VersionPopover;
 
 	private refreshTimer: number | null = null;
+	private viewActions!: ViewActionsController;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -40,14 +46,14 @@ export default class DraftlinePlugin extends Plugin {
 
 		this.registerEditorExtension(createDraftlineExtensions());
 		registerCommands(this);
-		registerViewActions(this);
+		this.viewActions = registerViewActions(this);
 		this.addSettingTab(new DraftlineSettingTab(this.app, this));
 
 		this.registerEvent(
 			this.app.workspace.on('file-open', () => {
 				const view =
 					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (view) {
+				if (view && isDraftlineEnabled(this.settings)) {
 					void ensureVersionedLivePreview(view);
 				}
 				this.refreshEditorState();
@@ -60,6 +66,7 @@ export default class DraftlinePlugin extends Plugin {
 		);
 		this.registerEvent(
 			this.app.vault.on('modify', (file) => {
+				if (!isDraftlineEnabled(this.settings)) return;
 				const active = this.service.getActiveMarkdownFile();
 				if (active && file.path === active.path) {
 					this.scheduleRefresh();
@@ -74,16 +81,11 @@ export default class DraftlinePlugin extends Plugin {
 
 	onunload(): void {
 		this.popover.close();
-		if (this.refreshTimer !== null) {
-			window.clearTimeout(this.refreshTimer);
-			this.refreshTimer = null;
-		}
+		this.clearRefreshTimer();
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
+		this.settings = mergeSettings(
 			(await this.loadData()) as Partial<DraftlineSettings>,
 		);
 	}
@@ -92,29 +94,77 @@ export default class DraftlinePlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	scheduleRefresh(): void {
-		if (this.refreshTimer !== null) {
-			window.clearTimeout(this.refreshTimer);
+	/** Apply the master enable toggle without rewriting notes. */
+	applyEnabledState(): void {
+		const enabled = isDraftlineEnabled(this.settings);
+		this.viewActions.setEnabled(enabled);
+
+		if (!enabled) {
+			this.popover.close();
+			this.clearRefreshTimer();
+			this.clearAllEditorStates();
+			return;
 		}
+
+		this.refreshAllEditorStates();
+	}
+
+	scheduleRefresh(): void {
+		if (!isDraftlineEnabled(this.settings)) return;
+		this.clearRefreshTimer();
 		this.refreshTimer = window.setTimeout(() => {
 			this.refreshTimer = null;
 			this.refreshEditorState();
 		}, 120);
 	}
 
-	refreshEditorState(): void {
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		const file = view?.file;
-		const cm = this.getCodeMirror(view);
-		if (!view || !file || !cm) {
+	refreshEditorState(view?: MarkdownView | null): void {
+		const target =
+			view ?? this.app.workspace.getActiveViewOfType(MarkdownView);
+		const file = target?.file;
+		const cm = this.getCodeMirror(target);
+		if (!target || !file || !cm) {
 			return;
 		}
 
-		void this.buildStateForFile(file.path, view).then((state) => {
+		if (!isDraftlineEnabled(this.settings)) {
+			cm.dispatch({
+				effects: setDraftlineState.of(DEFAULT_EDITOR_STATE),
+			});
+			return;
+		}
+
+		void this.buildStateForFile(file.path, target).then((state) => {
 			cm.dispatch({
 				effects: setDraftlineState.of(state),
 			});
 		});
+	}
+
+	private refreshAllEditorStates(): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				this.refreshEditorState(leaf.view);
+			}
+		});
+	}
+
+	private clearAllEditorStates(): void {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (!(leaf.view instanceof MarkdownView)) return;
+			const cm = this.getCodeMirror(leaf.view);
+			if (!cm) return;
+			cm.dispatch({
+				effects: setDraftlineState.of(DEFAULT_EDITOR_STATE),
+			});
+		});
+	}
+
+	private clearRefreshTimer(): void {
+		if (this.refreshTimer !== null) {
+			window.clearTimeout(this.refreshTimer);
+			this.refreshTimer = null;
+		}
 	}
 
 	private async buildStateForFile(

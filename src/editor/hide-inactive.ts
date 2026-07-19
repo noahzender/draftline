@@ -7,6 +7,7 @@ import {
 } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { editorLivePreviewField } from 'obsidian';
+import { draftlineStateField } from './draftline-state';
 import { buildHideDecorationSpecs } from './hide-decoration-specs';
 import { collectHiddenLineRanges } from './hide-inactive-ranges';
 
@@ -15,6 +16,12 @@ const hideLine = Decoration.line({ class: 'draftline-cm-hide-line' });
 
 function buildDecorations(view: EditorView): DecorationSet {
 	if (!view.state.field(editorLivePreviewField, false)) {
+		return Decoration.none;
+	}
+
+	// Master toggle clears path; skip hiding when Draftline is inactive for this view.
+	const state = view.state.field(draftlineStateField);
+	if (!state.path) {
 		return Decoration.none;
 	}
 
@@ -53,6 +60,8 @@ export const hideInactiveExtension = ViewPlugin.fromClass(
 			if (
 				update.docChanged ||
 				update.viewportChanged ||
+				update.startState.field(draftlineStateField) !==
+					update.state.field(draftlineStateField) ||
 				update.startState.field(editorLivePreviewField, false) !==
 					update.state.field(editorLivePreviewField, false)
 			) {

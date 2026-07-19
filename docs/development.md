@@ -36,7 +36,8 @@ If no test script exists, report that gap instead of claiming tests passed.
 ## Module boundaries
 
 - `src/main.ts`: plugin class, `onload`, `onunload`, and registration calls only.
-- `src/settings.ts`: settings types, defaults, validation, loading, saving, and settings UI.
+- `src/settings-model.ts`: settings types, defaults, and pure merge/enable helpers.
+- `src/settings.ts`: settings tab UI and persistence hooks into the plugin.
 - `src/commands/`: command registration and focused command handlers.
 - `src/ui/`: modals, views, and UI components.
 - `src/services/`: vault-facing or external-service boundaries.

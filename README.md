@@ -59,7 +59,8 @@ A history icon is also added to each Markdown note header, opening the same popo
 
 | Setting | Description |
 | --- | --- |
-| Auto-compare on version select | When enabled, selecting a version that has a parent turns comparison on against that parent automatically. Off by default. |
+| Enable Draftline | Master switch for Draftline commands, version history, and editor decorations. On by default when the plugin is enabled. Turning it off leaves notes unchanged. |
+| Auto-compare on version select | When enabled, selecting a version that has a parent turns comparison on against that parent automatically. Off by default. Only applies while Draftline is enabled. |
 
 ## Development
 
