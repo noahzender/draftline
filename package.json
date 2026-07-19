@@ -1,6 +1,6 @@
 {
 	"name": "draftline",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Manual Markdown version snapshots and Lex-style inline comparisons for Obsidian notes.",
 	"main": "main.js",
 	"type": "module",

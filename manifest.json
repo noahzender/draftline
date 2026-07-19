@@ -1,8 +1,8 @@
 {
 	"id": "draftline",
 	"name": "Draftline",
-	"version": "0.1.1",
-	"minAppVersion": "1.13.0",
+	"version": "0.1.2",
+	"minAppVersion": "1.12.7",
 	"description": "Create manual Markdown version snapshots and compare them with Lex-style inline diffs.",
 	"author": "Noah Zender",
 	"authorUrl": "https://github.com/noahzender",

@@ -1,6 +1,7 @@
 import {
 	App,
 	PluginSettingTab,
+	Setting,
 	type SettingDefinitionItem,
 } from 'obsidian';
 import type DraftlinePlugin from './main';
@@ -50,5 +51,25 @@ export class DraftlineSettingTab extends PluginSettingTab {
 			this.plugin.settings.autoCompareOnSelect = value;
 			await this.plugin.saveSettings();
 		}
+	}
+
+	/** Fallback for Obsidian < 1.13, which does not call getSettingDefinitions(). */
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('Auto-compare on version select')
+			.setDesc(
+				'When enabled, selecting a version that has a parent turns on comparison against that parent.',
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoCompareOnSelect)
+					.onChange(async (value) => {
+						this.plugin.settings.autoCompareOnSelect = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 }
