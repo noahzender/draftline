@@ -143,10 +143,16 @@
 	gap: 8px;
 }
 
-.draftline-popover__compare-toggle {
-	display: inline-flex;
+.draftline-popover__compare-row {
+	display: flex;
 	align-items: center;
-	gap: 6px;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.draftline-popover__compare-label {
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
 }
 
 .draftline-popover__baseline {

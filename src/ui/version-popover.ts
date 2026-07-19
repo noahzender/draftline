@@ -1,4 +1,4 @@
-import { MarkdownView, setIcon } from 'obsidian';
+import { MarkdownView, setIcon, ToggleComponent } from 'obsidian';
 import type DraftlinePlugin from '../main';
 import type { VersionSnapshot, VersionedDocument } from '../version-format';
 import { formatCreatedAt } from '../utils/format-created-at';
@@ -76,14 +76,18 @@ export class VersionPopover {
 			const toggleRow = compareSection.createDiv({
 				cls: 'draftline-popover__compare-row',
 			});
-			const toggleBtn = toggleRow.createEl('button', {
-				cls: 'draftline-popover__compare-toggle',
-				text: comparison.enabled ? 'Hide changes' : 'Show changes',
-				attr: { type: 'button' },
+			toggleRow.createSpan({
+				cls: 'draftline-popover__compare-label',
+				text: 'Show changes',
 			});
-			toggleBtn.prepend(this.icon(comparison.enabled ? 'eye-off' : 'eye'));
-			toggleBtn.addEventListener('click', () => {
-				this.plugin.comparison.toggle(file.path);
+			const toggle = new ToggleComponent(toggleRow);
+			toggle.setValue(comparison.enabled);
+			toggle.onChange((enabled) => {
+				const current = this.plugin.comparison.get(file.path);
+				this.plugin.comparison.set(file.path, {
+					...current,
+					enabled,
+				});
 				this.plugin.refreshEditorState();
 				void this.openForActiveView(nextAnchor, document);
 			});
@@ -208,7 +212,13 @@ export class VersionPopover {
 				}
 
 				this.plugin.refreshEditorState();
-				await this.openForActiveView(anchor, updated);
+
+				if (this.plugin.comparison.get(path).enabled) {
+					await this.openForActiveView(anchor, updated);
+					return;
+				}
+
+				this.close();
 			})();
 		});
 	}
