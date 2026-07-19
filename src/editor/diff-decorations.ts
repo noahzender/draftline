@@ -12,12 +12,8 @@ import {
 	bodyOffsetToDocOffset,
 	mapActiveOffsetsThroughLines,
 } from '../diff/diff-model';
-import {
-	ACTIVE_CALLOUT,
-	VERSION_MARKER_PREFIX,
-	type VersionedDocument,
-} from '../version-format';
 import { draftlineStateField } from './draftline-state';
+import { findActiveBodyStart } from './find-active-body-start';
 
 class DeletionWidget extends WidgetType {
 	constructor(private readonly text: string) {
@@ -42,22 +38,6 @@ class DeletionWidget extends WidgetType {
 
 const addMark = Decoration.mark({ class: 'draftline-diff-add' });
 
-function findActiveBodyStart(docText: string, document: VersionedDocument): number | null {
-	const newline = document.newline === '\r\n' ? '\r\n' : '\n';
-	const opener = `> [!${ACTIVE_CALLOUT}]`;
-	const openerIdx = docText.indexOf(opener);
-	if (openerIdx === -1) return null;
-
-	const afterOpener = openerIdx + opener.length;
-	const markerNeedle = VERSION_MARKER_PREFIX;
-	const markerIdx = docText.indexOf(markerNeedle, afterOpener);
-	if (markerIdx === -1) return null;
-
-	const markerLineEnd = docText.indexOf(newline, markerIdx);
-	if (markerLineEnd === -1) return null;
-	return markerLineEnd + newline.length;
-}
-
 function buildDiffDecorations(view: EditorView): DecorationSet {
 	if (!view.state.field(editorLivePreviewField, false)) {
 		return Decoration.none;
@@ -72,7 +52,7 @@ function buildDiffDecorations(view: EditorView): DecorationSet {
 	if (!active) return Decoration.none;
 
 	const docText = view.state.doc.toString();
-	const bodyStart = findActiveBodyStart(docText, state.document);
+	const bodyStart = findActiveBodyStart(docText, state.document.newline);
 	if (bodyStart === null) return Decoration.none;
 
 	const ranges = mapActiveOffsetsThroughLines(
@@ -94,8 +74,6 @@ function buildDiffDecorations(view: EditorView): DecorationSet {
 				additions.push({ from, to });
 			}
 		} else if (part.kind === 'remove') {
-			// Place deletion widget at the current active offset cursor position.
-			// Use the next equal/add activeFrom, or end of body.
 			let anchorBody = 0;
 			const idx = state.diff.parts.indexOf(part);
 			for (let i = idx + 1; i < state.diff.parts.length; i++) {

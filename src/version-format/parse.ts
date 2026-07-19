@@ -22,10 +22,7 @@ function parseJsonPayload<T>(raw: string, label: string): T | string {
 	}
 }
 
-function extractMarker(
-	line: string,
-	prefix: string,
-): string | null {
+function extractMarker(line: string, prefix: string): string | null {
 	const trimmed = line.trim();
 	if (!trimmed.startsWith(prefix) || !trimmed.endsWith(MARKER_SUFFIX)) {
 		return null;
@@ -33,26 +30,135 @@ function extractMarker(
 	return trimmed.slice(prefix.length, trimmed.length - MARKER_SUFFIX.length);
 }
 
-function isCalloutOpener(line: string): 'active' | 'inactive' | null {
+function isInactiveCalloutOpener(line: string): boolean {
 	const trimmed = line.trim();
-	if (trimmed === `> [!${ACTIVE_CALLOUT}]` || trimmed === `>[!${ACTIVE_CALLOUT}]`) {
-		return 'active';
-	}
-	if (
+	return (
 		trimmed === `> [!${INACTIVE_CALLOUT}]` ||
 		trimmed === `>[!${INACTIVE_CALLOUT}]`
-	) {
-		return 'inactive';
-	}
-	return null;
+	);
+}
+
+function isActiveCalloutOpener(line: string): boolean {
+	const trimmed = line.trim();
+	return (
+		trimmed === `> [!${ACTIVE_CALLOUT}]` ||
+		trimmed === `>[!${ACTIVE_CALLOUT}]`
+	);
 }
 
 function isQuotedLine(line: string): boolean {
 	return line.startsWith('>') || line.trim() === '';
 }
 
+function parseVersionMeta(
+	payload: string,
+): VersionMeta | string {
+	const metaOrError = parseJsonPayload<VersionMeta>(payload, 'version marker');
+	if (typeof metaOrError === 'string') {
+		return metaOrError;
+	}
+	const meta = metaOrError;
+	if (typeof meta.id !== 'string' || !meta.id) {
+		return 'Version marker is missing id.';
+	}
+	if (
+		typeof meta.number !== 'number' ||
+		!Number.isInteger(meta.number) ||
+		meta.number < 1
+	) {
+		return `Version ${meta.id} has an invalid number.`;
+	}
+	if (typeof meta.createdAt !== 'string' || !meta.createdAt) {
+		return `Version ${meta.id} is missing createdAt.`;
+	}
+	if (meta.parentId !== null && typeof meta.parentId !== 'string') {
+		return `Version ${meta.id} has an invalid parentId.`;
+	}
+	return meta;
+}
+
+function parseInactiveCallout(
+	lines: string[],
+	startIndex: number,
+):
+	| { ok: true; version: VersionSnapshot; nextIndex: number }
+	| { ok: false; error: string } {
+	let index = startIndex + 1;
+
+	if (index >= lines.length) {
+		return { ok: false, error: 'Version callout is missing its version marker.' };
+	}
+
+	const versionLine = lines[index]!;
+	const unquotedMarkerLine = unquoteBody(versionLine).trim();
+	const payload =
+		extractMarker(unquotedMarkerLine, VERSION_MARKER_PREFIX) ??
+		extractMarker(
+			versionLine.trim().replace(/^>\s?/, ''),
+			VERSION_MARKER_PREFIX,
+		);
+	if (payload === null) {
+		return { ok: false, error: 'Version callout is missing its version marker.' };
+	}
+
+	const meta = parseVersionMeta(payload);
+	if (typeof meta === 'string') {
+		return { ok: false, error: meta };
+	}
+
+	index++;
+	const bodyLines: string[] = [];
+	while (index < lines.length) {
+		const line = lines[index]!;
+		if (line.trim() === '') {
+			let look = index + 1;
+			while (look < lines.length && lines[look]!.trim() === '') {
+				look++;
+			}
+			if (
+				look < lines.length &&
+				(isInactiveCalloutOpener(lines[look]!) ||
+					extractMarker(lines[look]!.trim(), VERSION_MARKER_PREFIX) !== null)
+			) {
+				break;
+			}
+			bodyLines.push('');
+			index++;
+			continue;
+		}
+		if (isInactiveCalloutOpener(line)) {
+			break;
+		}
+		if (extractMarker(line.trim(), VERSION_MARKER_PREFIX) !== null) {
+			break;
+		}
+		if (!isQuotedLine(line) && !line.startsWith('>')) {
+			return {
+				ok: false,
+				error: `Unexpected unquoted content inside version ${meta.id}.`,
+			};
+		}
+		bodyLines.push(line);
+		index++;
+	}
+
+	while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1] === '') {
+		bodyLines.pop();
+	}
+
+	return {
+		ok: true,
+		version: {
+			meta,
+			body: unquoteBody(bodyLines.join('\n')),
+			active: false,
+		},
+		nextIndex: index,
+	};
+}
+
 /**
- * Parse a Draftline-versioned note. Returns an error string for malformed structure.
+ * Parse a Draftline schema 2 note. Schema 1 and malformed structure fail closed.
  */
 export function parseVersionedDocument(content: string): ParseResult {
 	const { frontmatter, body, newline } = splitFrontmatter(content);
@@ -96,6 +202,7 @@ export function parseVersionedDocument(content: string): ParseResult {
 	}
 
 	const versions: VersionSnapshot[] = [];
+	let activeParsed = false;
 
 	while (index < lines.length) {
 		while (index < lines.length && lines[index]!.trim() === '') {
@@ -105,97 +212,84 @@ export function parseVersionedDocument(content: string): ParseResult {
 			break;
 		}
 
-		const activity = isCalloutOpener(lines[index]!);
-		if (!activity) {
+		const line = lines[index]!;
+
+		if (isActiveCalloutOpener(line)) {
 			return {
 				ok: false,
-				error: `Expected a Draftline version callout, found: ${lines[index]!.slice(0, 80)}`,
+				error:
+					'Unsupported Draftline schema version: 1 (active callout storage).',
 			};
 		}
-		index++;
 
-		if (index >= lines.length) {
-			return { ok: false, error: 'Version callout is missing its version marker.' };
-		}
-
-		const versionLine = lines[index]!;
-		const unquotedMarkerLine = unquoteBody(versionLine).trim();
-		const versionPayload = extractMarker(
-			unquotedMarkerLine.startsWith('%%')
-				? unquotedMarkerLine
-				: versionLine.trim().replace(/^>\s?/, ''),
-			VERSION_MARKER_PREFIX,
-		);
-		// Prefer parsing from unquoted form.
-		const payload =
-			extractMarker(unquotedMarkerLine, VERSION_MARKER_PREFIX) ?? versionPayload;
-		if (payload === null) {
-			return { ok: false, error: 'Version callout is missing its version marker.' };
-		}
-
-		const metaOrError = parseJsonPayload<VersionMeta>(payload, 'version marker');
-		if (typeof metaOrError === 'string') {
-			return { ok: false, error: metaOrError };
-		}
-		const meta = metaOrError;
-		if (typeof meta.id !== 'string' || !meta.id) {
-			return { ok: false, error: 'Version marker is missing id.' };
-		}
-		if (typeof meta.number !== 'number' || !Number.isInteger(meta.number) || meta.number < 1) {
-			return { ok: false, error: `Version ${meta.id} has an invalid number.` };
-		}
-		if (typeof meta.createdAt !== 'string' || !meta.createdAt) {
-			return { ok: false, error: `Version ${meta.id} is missing createdAt.` };
-		}
-		if (meta.parentId !== null && typeof meta.parentId !== 'string') {
-			return { ok: false, error: `Version ${meta.id} has an invalid parentId.` };
-		}
-
-		index++;
-		const bodyLines: string[] = [];
-		while (index < lines.length) {
-			const line = lines[index]!;
-			if (line.trim() === '') {
-				// Blank line: could be separator between callouts or part of body.
-				// Look ahead for next callout opener.
-				let look = index + 1;
-				while (look < lines.length && lines[look]!.trim() === '') {
-					look++;
-				}
-				if (look < lines.length && isCalloutOpener(lines[look]!)) {
-					break;
-				}
-				// Part of the version body (empty quoted line omitted — treat as blank).
-				bodyLines.push('');
-				index++;
-				continue;
-			}
-			if (isCalloutOpener(line)) {
-				break;
-			}
-			if (!isQuotedLine(line) && !line.startsWith('>')) {
+		if (isInactiveCalloutOpener(line)) {
+			if (activeParsed) {
 				return {
 					ok: false,
-					error: `Unexpected unquoted content inside version ${meta.id}.`,
+					error:
+						'Inactive version callouts must appear before the active version marker.',
 				};
 			}
-			bodyLines.push(line);
+			const inactive = parseInactiveCallout(lines, index);
+			if (!inactive.ok) {
+				return inactive;
+			}
+			versions.push(inactive.version);
+			index = inactive.nextIndex;
+			continue;
+		}
+
+		const activePayload = extractMarker(line.trim(), VERSION_MARKER_PREFIX);
+		if (activePayload !== null) {
+			if (activeParsed) {
+				return {
+					ok: false,
+					error: 'Expected exactly one active version marker.',
+				};
+			}
+			const meta = parseVersionMeta(activePayload);
+			if (typeof meta === 'string') {
+				return { ok: false, error: meta };
+			}
+
 			index++;
+			while (index < lines.length && lines[index]!.trim() === '') {
+				index++;
+			}
+
+			const bodyLines = lines.slice(index);
+			// Guard: inactive callouts must not appear after the active marker.
+			for (const bodyLine of bodyLines) {
+				if (isInactiveCalloutOpener(bodyLine)) {
+					return {
+						ok: false,
+						error:
+							'Inactive version callouts must appear before the active version marker.',
+					};
+				}
+			}
+
+			let activeBody = bodyLines.join('\n');
+			activeBody = activeBody.replace(/\n+$/, '');
+
+			versions.push({
+				meta,
+				body: activeBody,
+				active: true,
+			});
+			activeParsed = true;
+			index = lines.length;
+			continue;
 		}
 
-		// Trim trailing blank body lines introduced as separators.
-		while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1] === '') {
-			bodyLines.pop();
-		}
+		return {
+			ok: false,
+			error: `Expected a Draftline version callout or active marker, found: ${line.slice(0, 80)}`,
+		};
+	}
 
-		const quotedBody = bodyLines.join('\n');
-		const body = unquoteBody(quotedBody);
-
-		versions.push({
-			meta,
-			body,
-			active: activity === 'active',
-		});
+	if (!activeParsed) {
+		return { ok: false, error: 'Missing active Draftline version marker.' };
 	}
 
 	if (versions.length === 0) {

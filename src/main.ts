@@ -2,6 +2,7 @@ import { MarkdownView, Plugin } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { registerCommands } from './commands/register-commands';
 import { buildDiffModel } from './diff/diff-model';
+import { ensureVersionedLivePreview } from './editor/ensure-versioned-live-preview';
 import { createDraftlineExtensions } from './editor/extensions';
 import {
 	DEFAULT_EDITOR_STATE,
@@ -44,6 +45,11 @@ export default class DraftlinePlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on('file-open', () => {
+				const view =
+					this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view) {
+					void ensureVersionedLivePreview(view);
+				}
 				this.refreshEditorState();
 			}),
 		);

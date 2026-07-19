@@ -56,11 +56,8 @@ export function buildDiffModel(baselineBody: string, activeBody: string): DiffMo
 }
 
 /**
- * Map an offset in the unquoted active body to a document offset given the
- * active callout's content start position and the quoted document text.
- *
- * For MVP editor decorations we operate on the raw file text ranges for the
- * active body lines (including `> ` prefixes). Callers pass a mapper.
+ * Map an offset in the plain active body to a document offset given the
+ * body's start position in the full document text.
  */
 export function mapActiveOffsetsThroughLines(
 	activeBody: string,
@@ -81,22 +78,19 @@ export function mapActiveOffsetsThroughLines(
 
 	for (let i = 0; i < bodyLines.length; i++) {
 		const line = bodyLines[i]!;
-		const quoted = line.length === 0 ? '>' : `> ${line}`;
-		const idx = docText.indexOf(quoted, searchFrom);
+		const idx = docText.indexOf(line, searchFrom);
 		if (idx === -1) {
-			// Fallback: skip unmapped line.
 			bodyOffset += line.length + (i < bodyLines.length - 1 ? 1 : 0);
 			continue;
 		}
-		const contentStart = line.length === 0 ? idx + 1 : idx + 2;
 		ranges.push({
 			bodyFrom: bodyOffset,
 			bodyTo: bodyOffset + line.length,
-			docFrom: contentStart,
-			docTo: contentStart + line.length,
+			docFrom: idx,
+			docTo: idx + line.length,
 		});
 		bodyOffset += line.length + (i < bodyLines.length - 1 ? 1 : 0);
-		searchFrom = idx + quoted.length + newline.length;
+		searchFrom = idx + line.length + newline.length;
 	}
 
 	return ranges;
@@ -111,7 +105,7 @@ export function bodyOffsetToDocOffset(
 			return range.docFrom + (bodyOffset - range.bodyFrom);
 		}
 	}
-	// Newline between lines: map to end of previous line.
+	// Newline between lines: map to start of next line.
 	for (let i = 0; i < ranges.length - 1; i++) {
 		const current = ranges[i]!;
 		const next = ranges[i + 1]!;

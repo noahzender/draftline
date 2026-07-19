@@ -52,10 +52,12 @@ Prefer pure functions for parsing, transformations, and decisions. Pass narrow d
 
 - Version history lives in the Markdown file after YAML frontmatter.
 - YAML is singular and never versioned.
-- Each version is a full snapshot inside a `draftline-active` or `draftline-version` callout.
-- Document and version metadata use `%% draftline-document … %%` and `%% draftline-version … %%` markers.
+- Schema 2 stores inactive snapshots in `draftline-version` callouts, then the selected version as an unquoted `%% draftline-version … %%` marker followed by a plain Markdown body through EOF.
+- Document metadata uses `%% draftline-document … %%` with `"schema":2`.
+- Selecting a version promotes its body into the plain editable region; creating a version archives the current plain body and duplicates it as the new active body. The first Create Version archives the original unversioned body as Version 1 and opens Version 2.
 - Diffs are derived at runtime from two snapshot bodies; they are not persisted.
-- Malformed Draftline structure must fail closed: show a notice and do not rewrite the file.
+- Malformed Draftline structure and unsupported schema versions must fail closed: show a notice and do not rewrite the file.
+- Prefer the Editor API for transforming the active note; use `Vault.process` only as a fallback for notes that are not open in the active view.
 
 ## Obsidian API guardrails
 

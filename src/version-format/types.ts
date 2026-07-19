@@ -1,9 +1,10 @@
-export const DRAFTLINE_SCHEMA = 1 as const;
+export const DRAFTLINE_SCHEMA = 2 as const;
 
 export const DOCUMENT_MARKER_PREFIX = '%% draftline-document ';
 export const VERSION_MARKER_PREFIX = '%% draftline-version ';
 export const MARKER_SUFFIX = ' %%';
 
+/** Legacy schema 1 active callout — rejected, not written. */
 export const ACTIVE_CALLOUT = 'draftline-active';
 export const INACTIVE_CALLOUT = 'draftline-version';
 

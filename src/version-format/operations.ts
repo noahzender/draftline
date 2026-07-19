@@ -38,12 +38,21 @@ function getActive(doc: VersionedDocument): VersionSnapshot {
 	return active;
 }
 
+export type VersionOperationOptions = {
+	now?: Date;
+	/** Id for the new active version (Version 2 on first create). */
+	id?: string;
+	/** Id for the archived original (Version 1 on first create). */
+	parentId?: string;
+};
+
 /**
- * Wrap an unversioned note body as Version 1.
+ * On first Create Version: archive the original body as Version 1 and open an
+ * editable Version 2 duplicate. Later calls use createVersionFromActive.
  */
 export function initializeVersionedNote(
 	content: string,
-	options?: { now?: Date; id?: string },
+	options?: VersionOperationOptions,
 ): OperationResult {
 	const parsed = parseVersionedDocument(content);
 	if (parsed.ok) {
@@ -52,6 +61,7 @@ export function initializeVersionedNote(
 
 	const { frontmatter, body, newline } = splitFrontmatter(content);
 	const trimmedBody = body.replace(/^\r?\n+/, '').replace(/\r?\n+$/, '');
+	const parentId = options?.parentId ?? createVersionId();
 	const id = options?.id ?? createVersionId();
 	const createdAt = (options?.now ?? new Date()).toISOString();
 
@@ -64,13 +74,23 @@ export function initializeVersionedNote(
 		},
 		versions: [
 			{
+				active: false,
+				body: trimmedBody,
+				meta: {
+					id: parentId,
+					number: 1,
+					createdAt,
+					parentId: null,
+				},
+			},
+			{
 				active: true,
 				body: trimmedBody,
 				meta: {
 					id,
-					number: 1,
+					number: 2,
 					createdAt,
-					parentId: null,
+					parentId,
 				},
 			},
 		],
@@ -90,17 +110,18 @@ export function initializeVersionedNote(
 
 /**
  * Duplicate the currently active version into a new latest editable version.
+ * For unversioned notes, archives the original as Version 1 and opens Version 2.
  */
 export function createVersionFromActive(
 	content: string,
-	options?: { now?: Date; id?: string },
+	options?: VersionOperationOptions,
 ): OperationResult {
 	const parsed = parseVersionedDocument(content);
 	if (!parsed.ok) {
 		if (isDraftlineDocument(content)) {
 			return { ok: false, error: parsed.error };
 		}
-		// First create initializes an unversioned note.
+		// First create archives the original as Version 1 and opens Version 2.
 		return initializeVersionedNote(content, options);
 	}
 
@@ -145,8 +166,8 @@ export function createVersionFromActive(
 }
 
 /**
- * Switch which version is active by rewriting only callout openers via full serialize.
- * Snapshot bodies are preserved.
+ * Switch which version is active by promoting its body to the plain region
+ * and archiving the previous active snapshot into an inactive callout.
  */
 export function switchActiveVersion(
 	content: string,

@@ -7,12 +7,8 @@ import {
 } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { editorLivePreviewField } from 'obsidian';
-import {
-	ACTIVE_CALLOUT,
-	DOCUMENT_MARKER_PREFIX,
-	INACTIVE_CALLOUT,
-	VERSION_MARKER_PREFIX,
-} from '../version-format';
+import { buildHideDecorationSpecs } from './hide-decoration-specs';
+import { collectHiddenLineRanges } from './hide-inactive-ranges';
 
 const hideMark = Decoration.replace({});
 const hideLine = Decoration.line({ class: 'draftline-cm-hide-line' });
@@ -24,61 +20,21 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	const builder = new RangeSetBuilder<Decoration>();
 	const doc = view.state.doc;
-	let inInactive = false;
-
+	const lines: string[] = [];
 	for (let i = 1; i <= doc.lines; i++) {
-		const line = doc.line(i);
-		const text = line.text;
-		const trimmed = text.trim();
+		lines.push(doc.line(i).text);
+	}
 
-		if (
-			trimmed.startsWith(DOCUMENT_MARKER_PREFIX) ||
-			trimmed.replace(/^>\s?/, '').startsWith(VERSION_MARKER_PREFIX)
-		) {
+	const ranges = collectHiddenLineRanges(lines);
+	const specs = buildHideDecorationSpecs(lines, ranges);
+
+	for (const spec of specs) {
+		const line = doc.line(spec.line + 1);
+		// Line class first so empty lines still collapse; replace only when
+		// the range is non-empty (CM rejects zero-length replace decorations).
+		builder.add(line.from, line.from, hideLine);
+		if (spec.replace) {
 			builder.add(line.from, line.to, hideMark);
-			builder.add(line.from, line.from, hideLine);
-			continue;
-		}
-
-		if (
-			trimmed === `> [!${INACTIVE_CALLOUT}]` ||
-			trimmed === `>[!${INACTIVE_CALLOUT}]`
-		) {
-			inInactive = true;
-			builder.add(line.from, line.to, hideMark);
-			builder.add(line.from, line.from, hideLine);
-			continue;
-		}
-
-		if (
-			trimmed === `> [!${ACTIVE_CALLOUT}]` ||
-			trimmed === `>[!${ACTIVE_CALLOUT}]`
-		) {
-			inInactive = false;
-			builder.add(line.from, line.to, hideMark);
-			builder.add(line.from, line.from, hideLine);
-			continue;
-		}
-
-		if (inInactive) {
-			if (trimmed === '' && i < doc.lines) {
-				const next = doc.line(i + 1).text.trim();
-				if (
-					next === `> [!${ACTIVE_CALLOUT}]` ||
-					next === `> [!${INACTIVE_CALLOUT}]` ||
-					next === `>[!${ACTIVE_CALLOUT}]` ||
-					next === `>[!${INACTIVE_CALLOUT}]`
-				) {
-					inInactive = false;
-					continue;
-				}
-			}
-			if (text.startsWith('>') || trimmed === '') {
-				builder.add(line.from, line.to, hideMark);
-				builder.add(line.from, line.from, hideLine);
-			} else {
-				inInactive = false;
-			}
 		}
 	}
 

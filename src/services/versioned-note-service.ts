@@ -11,6 +11,10 @@ import {
 	type VersionedDocument,
 } from '../version-format';
 
+type TransformResult =
+	| { ok: true; content: string; document: VersionedDocument }
+	| { ok: false; error: string };
+
 export class VersionedNoteService {
 	constructor(private readonly plugin: DraftlinePlugin) {}
 
@@ -20,6 +24,14 @@ export class VersionedNoteService {
 	}
 
 	async readFile(file: TFile): Promise<string> {
+		// Prefer the open editor buffer so popover state matches what the user sees.
+		const view = this.getActiveViewForFile(file);
+		if (view?.editor) {
+			return view.editor.getValue();
+		}
+		if (view && typeof view.data === 'string') {
+			return view.data;
+		}
 		return this.plugin.app.vault.read(file);
 	}
 
@@ -44,28 +56,39 @@ export class VersionedNoteService {
 	}
 
 	async createVersion(file: TFile): Promise<VersionedDocument | null> {
-		const content = await this.readFile(file);
-		const result = createVersionFromActive(content);
-		if (!result.ok) {
-			new Notice(`Draftline: ${result.error}`);
+		const outcome = await this.applyTransform(file, (content) =>
+			createVersionFromActive(content),
+		);
+
+		if (outcome.error || !outcome.document) {
+			new Notice(
+				`Draftline: ${outcome.error ?? 'Could not create version.'}`,
+			);
 			return null;
 		}
-		await this.plugin.app.vault.process(file, () => result.content);
-		new Notice(
-			`Draftline: created Version ${result.document.versions.find((v) => v.active)?.meta.number ?? ''}`,
-		);
-		return result.document;
+
+		const activeNumber =
+			outcome.document.versions.find((v) => v.active)?.meta.number ?? '';
+		new Notice(`Draftline: created Version ${activeNumber}`);
+		return outcome.document;
 	}
 
-	async selectVersion(file: TFile, versionId: string): Promise<VersionedDocument | null> {
-		const content = await this.readFile(file);
-		const result = switchActiveVersion(content, versionId);
-		if (!result.ok) {
-			new Notice(`Draftline: ${result.error}`);
+	async selectVersion(
+		file: TFile,
+		versionId: string,
+	): Promise<VersionedDocument | null> {
+		const outcome = await this.applyTransform(file, (content) =>
+			switchActiveVersion(content, versionId),
+		);
+
+		if (outcome.error || !outcome.document) {
+			new Notice(
+				`Draftline: ${outcome.error ?? 'Could not select version.'}`,
+			);
 			return null;
 		}
-		await this.plugin.app.vault.process(file, () => result.content);
-		return result.document;
+
+		return outcome.document;
 	}
 
 	async selectAdjacentVersion(
@@ -92,5 +115,50 @@ export class VersionedNoteService {
 
 	listVersions(doc: VersionedDocument): VersionSnapshot[] {
 		return listVersionsNewestFirst(doc);
+	}
+
+	private getActiveViewForFile(file: TFile): MarkdownView | null {
+		const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+		if (view?.file?.path === file.path) {
+			return view;
+		}
+		return null;
+	}
+
+	/**
+	 * Transform the note content. Prefer the active editor buffer so unsaved
+	 * edits are included and Live Preview is not disrupted by a disk rewrite.
+	 * Fall back to Vault.process for files that are not open in the active view.
+	 */
+	private async applyTransform(
+		file: TFile,
+		transform: (content: string) => TransformResult,
+	): Promise<{ document: VersionedDocument | null; error: string | null }> {
+		const view = this.getActiveViewForFile(file);
+		if (view?.editor) {
+			const result = transform(view.editor.getValue());
+			if (!result.ok) {
+				return { document: null, error: result.error };
+			}
+			view.editor.setValue(result.content);
+			return { document: result.document, error: null };
+		}
+
+		const outcome: {
+			document: VersionedDocument | null;
+			error: string | null;
+		} = { document: null, error: null };
+
+		await this.plugin.app.vault.process(file, (content) => {
+			const result = transform(content);
+			if (!result.ok) {
+				outcome.error = result.error;
+				return content;
+			}
+			outcome.document = result.document;
+			return result.content;
+		});
+
+		return outcome;
 	}
 }

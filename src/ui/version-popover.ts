@@ -1,18 +1,7 @@
 import { MarkdownView, setIcon } from 'obsidian';
 import type DraftlinePlugin from '../main';
 import type { VersionSnapshot, VersionedDocument } from '../version-format';
-
-function formatCreatedAt(iso: string): string {
-	const date = new Date(iso);
-	if (Number.isNaN(date.getTime())) {
-		return iso;
-	}
-	return date.toLocaleDateString(undefined, {
-		month: 'short',
-		day: 'numeric',
-		year: 'numeric',
-	});
-}
+import { formatCreatedAt } from '../utils/format-created-at';
 
 export class VersionPopover {
 	private popoverEl: HTMLElement | null = null;
@@ -26,20 +15,26 @@ export class VersionPopover {
 		this.dismissRegistered = true;
 	}
 
-	async openForActiveView(anchor?: HTMLElement): Promise<void> {
+	async openForActiveView(
+		anchor?: HTMLElement,
+		preloaded?: VersionedDocument | null,
+	): Promise<void> {
 		const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
 		const file = view?.file;
 		if (!view || !file) {
 			return;
 		}
 
+		const nextAnchor = anchor ?? this.anchorEl ?? undefined;
 		this.close();
-		this.anchorEl = anchor ?? null;
+		this.anchorEl = nextAnchor ?? null;
 
-		let document: VersionedDocument | null = null;
-		const parsed = await this.plugin.service.parseFile(file);
-		if (parsed.ok) {
-			document = parsed.document;
+		let document: VersionedDocument | null = preloaded ?? null;
+		if (!document) {
+			const parsed = await this.plugin.service.parseFile(file);
+			if (parsed.ok) {
+				document = parsed.document;
+			}
 		}
 
 		const popover = createDiv({ cls: 'draftline-popover' });
@@ -49,14 +44,14 @@ export class VersionPopover {
 		const createBtn = popover.createEl('button', {
 			cls: 'draftline-popover__create mod-cta',
 			text: 'Create version',
+			attr: { type: 'button' },
 		});
-		createBtn.prepend(this.icon('plus'));
+		createBtn.prepend(this.icon('circle-plus'));
 		createBtn.addEventListener('click', () => {
 			void (async () => {
-				await this.plugin.service.createVersion(file);
-				this.close();
-				await this.openForActiveView(anchor);
+				const created = await this.plugin.service.createVersion(file);
 				this.plugin.refreshEditorState();
+				await this.openForActiveView(nextAnchor, created);
 			})();
 		});
 
@@ -65,14 +60,14 @@ export class VersionPopover {
 		if (!document) {
 			list.createDiv({
 				cls: 'draftline-popover__empty',
-				text: 'No versions yet. Create Version 1 from the current note body.',
+				text: 'No versions yet. Create a version to snapshot this note.',
 			});
 		} else {
 			const versions = this.plugin.service.listVersions(document);
 			const comparison = this.plugin.comparison.get(file.path);
 
 			for (const version of versions) {
-				this.renderVersionRow(list, file.path, version, document, comparison.enabled);
+				this.renderVersionRow(list, file.path, version, nextAnchor);
 			}
 
 			const compareSection = popover.createDiv({
@@ -84,12 +79,13 @@ export class VersionPopover {
 			const toggleBtn = toggleRow.createEl('button', {
 				cls: 'draftline-popover__compare-toggle',
 				text: comparison.enabled ? 'Hide changes' : 'Show changes',
+				attr: { type: 'button' },
 			});
 			toggleBtn.prepend(this.icon(comparison.enabled ? 'eye-off' : 'eye'));
 			toggleBtn.addEventListener('click', () => {
 				this.plugin.comparison.toggle(file.path);
 				this.plugin.refreshEditorState();
-				void this.openForActiveView(anchor);
+				void this.openForActiveView(nextAnchor, document);
 			});
 
 			if (comparison.enabled) {
@@ -126,7 +122,7 @@ export class VersionPopover {
 
 		activeDocument.body.appendChild(popover);
 		this.popoverEl = popover;
-		this.position(popover, anchor, view);
+		this.position(popover, nextAnchor, view);
 		void this.dismissRegistered;
 	}
 
@@ -151,12 +147,18 @@ export class VersionPopover {
 		parent: HTMLElement,
 		path: string,
 		version: VersionSnapshot,
-		document: VersionedDocument,
-		_compareEnabled: boolean,
+		anchor: HTMLElement | undefined,
 	): void {
 		const row = parent.createEl('button', {
-			cls: 'draftline-popover__version' + (version.active ? ' is-active' : ''),
+			cls:
+				'draftline-popover__version' +
+				(version.active ? ' is-selected' : ''),
+			attr: {
+				type: 'button',
+				'aria-pressed': version.active ? 'true' : 'false',
+			},
 		});
+		row.dataset.versionId = version.meta.id;
 
 		const radio = row.createSpan({
 			cls:
@@ -175,18 +177,26 @@ export class VersionPopover {
 			text: `Created ${formatCreatedAt(version.meta.createdAt)}`,
 		});
 
-		if (version.meta.id === document.document.latestVersionId) {
-			text.createSpan({
-				cls: 'draftline-popover__badge',
-				text: 'latest',
-			});
-		}
-
 		row.addEventListener('click', () => {
 			void (async () => {
+				if (version.active) {
+					return;
+				}
+
+				this.markSelected(version.meta.id);
+
 				const activeFile = this.plugin.service.getActiveMarkdownFile();
 				if (!activeFile) return;
-				await this.plugin.service.selectVersion(activeFile, version.meta.id);
+
+				const updated = await this.plugin.service.selectVersion(
+					activeFile,
+					version.meta.id,
+				);
+				if (!updated) {
+					await this.openForActiveView(anchor);
+					return;
+				}
+
 				if (
 					this.plugin.settings.autoCompareOnSelect &&
 					version.meta.parentId
@@ -196,11 +206,33 @@ export class VersionPopover {
 						baselineVersionId: version.meta.parentId,
 					});
 				}
+
 				this.plugin.refreshEditorState();
-				this.close();
-				await this.openForActiveView();
+				await this.openForActiveView(anchor, updated);
 			})();
 		});
+	}
+
+	/** Immediately reflect the selected version in the open popover. */
+	private markSelected(versionId: string): void {
+		if (!this.popoverEl) return;
+
+		const rows = this.popoverEl.querySelectorAll<HTMLElement>(
+			'.draftline-popover__version',
+		);
+		for (const row of Array.from(rows)) {
+			const isSelected = row.dataset.versionId === versionId;
+			row.toggleClass('is-selected', isSelected);
+			row.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+
+			const radio = row.querySelector<HTMLElement>(
+				'.draftline-popover__radio',
+			);
+			if (!radio) continue;
+			radio.toggleClass('is-checked', isSelected);
+			radio.empty();
+			setIcon(radio, isSelected ? 'circle-dot' : 'circle');
+		}
 	}
 
 	private position(

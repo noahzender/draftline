@@ -1,5 +1,4 @@
 import {
-	ACTIVE_CALLOUT,
 	DOCUMENT_MARKER_PREFIX,
 	INACTIVE_CALLOUT,
 	MARKER_SUFFIX,
@@ -19,12 +18,11 @@ export function serializeVersionMarker(meta: VersionMeta): string {
 	return `${VERSION_MARKER_PREFIX}${JSON.stringify(meta)}${MARKER_SUFFIX}`;
 }
 
-export function serializeVersionBlock(
+export function serializeInactiveVersionBlock(
 	version: VersionSnapshot,
 	newline: '\n' | '\r\n',
 ): string {
-	const callout = version.active ? ACTIVE_CALLOUT : INACTIVE_CALLOUT;
-	const opener = `> [!${callout}]`;
+	const opener = `> [!${INACTIVE_CALLOUT}]`;
 	const markerLine = `> ${serializeVersionMarker(version.meta)}`;
 	const bodyQuoted = quoteBody(version.body, newline);
 	const parts = [opener, markerLine];
@@ -35,8 +33,9 @@ export function serializeVersionBlock(
 }
 
 /**
- * Serialize a versioned document back to Markdown.
- * Versions are written newest-first (active typically first).
+ * Serialize a versioned document as schema 2 Markdown.
+ * Inactive callouts first (newest-first among archives), then the unquoted
+ * active version marker and plain active body through EOF.
  */
 export function serializeDocument(doc: VersionedDocument): string {
 	const { newline } = doc;
@@ -48,20 +47,26 @@ export function serializeDocument(doc: VersionedDocument): string {
 
 	chunks.push(serializeDocumentMarker(doc.document) + newline + newline);
 
-	const ordered = [...doc.versions].sort((a, b) => {
-		if (a.active !== b.active) {
-			return a.active ? -1 : 1;
-		}
-		return b.meta.number - a.meta.number;
-	});
+	const inactive = doc.versions
+		.filter((v) => !v.active)
+		.sort((a, b) => b.meta.number - a.meta.number);
 
-	for (let i = 0; i < ordered.length; i++) {
-		chunks.push(serializeVersionBlock(ordered[i]!, newline));
-		if (i < ordered.length - 1) {
-			chunks.push(newline + newline);
-		} else {
-			chunks.push(newline);
-		}
+	for (const version of inactive) {
+		chunks.push(serializeInactiveVersionBlock(version, newline));
+		chunks.push(newline + newline);
+	}
+
+	const active = doc.versions.find((v) => v.active);
+	if (!active) {
+		throw new Error('Cannot serialize a document without an active version.');
+	}
+
+	chunks.push(serializeVersionMarker(active.meta) + newline + newline);
+	chunks.push(active.body);
+	if (!active.body.endsWith(newline) && active.body.length > 0) {
+		chunks.push(newline);
+	} else if (active.body.length === 0) {
+		chunks.push(newline);
 	}
 
 	return chunks.join('');
