@@ -41,11 +41,11 @@ Verify `manifest.json`:
 ## Release gate
 
 - Create a tag that exactly equals the manifest version, with no leading `v`.
-- Build from the tagged source.
-- Attach `main.js`, `manifest.json`, and `styles.css` when present as individual release assets.
+- Pushing that tag runs `.github/workflows/release.yml`, which builds from the tagged source, publishes GitHub artifact attestations for `main.js`, `manifest.json`, and `styles.css`, and attaches those files as individual release assets.
 - Do not attach source maps, `data.json`, vault content, environment files, logs, or development archives.
 - Keep generated `main.js` and source maps out of normal Git history.
 - Verify the installed release assets in a clean dedicated vault on desktop and mobile before publishing.
+- Optional: after a release, confirm provenance with `gh attestation verify main.js --owner noahzender --repo draftline`.
 
 ## Final checklist
 
@@ -59,4 +59,5 @@ Verify `manifest.json`:
 - [ ] License and required attribution are present.
 - [ ] Manifest, package, version map, tag, and minimum app version agree.
 - [ ] Only required release assets are attached.
+- [ ] Release assets have GitHub artifact attestations.
 - [ ] No secrets, private data, local paths, vault data, logs, or source maps are present.
