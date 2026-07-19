@@ -1,6 +1,16 @@
 # Draftline
 
-Draftline is an Obsidian plugin for manual Markdown version snapshots and inline comparisons. Versions live inside the note itself — not in a sidecar file or plugin database — so history travels with the note (sync, git, backups) and agents or other tools can read it straight from the source file.
+Draftline is an Obsidian plugin for manual Markdown version snapshots and inline comparisons between them. It's built for two things: keeping version control over your notes, and giving you (or an AI assistant) a shared, readable format for discussing what changed between drafts. Versions live inside the note itself — not in a sidecar file or plugin database — so history travels with the note (sync, git, backups), and agents or other tools can read and reason about it straight from the source file.
+
+## Installation
+
+Draftline is not yet listed in the Obsidian Community Plugins directory. Until it is, install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat) (Beta Reviewer's Auto-update Tool):
+
+1. Install and enable the BRAT plugin from Community Plugins in a **dedicated disposable vault** (see [Development](#development) below — do not use a primary or valuable vault).
+2. Open BRAT's settings (or run the command **BRAT: Add a beta plugin for testing**) and add this repository.
+3. Enable Draftline under **Settings → Community plugins**.
+
+Once Draftline is accepted into the Community Plugins directory, it will be installable directly from Obsidian without BRAT.
 
 ## Features
 

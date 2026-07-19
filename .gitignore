@@ -17,9 +17,20 @@ main.js
 
 # obsidian
 data.json
+.obsidian/
 
-# Exclude macOS Finder (System Explorer) View States
+# secrets / local env
+.env
+.env.*
+
+# tooling caches and logs
+*.log
+.eslintcache
+*.tsbuildinfo
+
+# OS junk
 .DS_Store
+Thumbs.db
 
 # brainstorm / local agent state
 .superpowers/
