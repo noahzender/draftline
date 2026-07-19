@@ -1,6 +1,6 @@
 # Draftline
 
-Draftline is an Obsidian plugin for manual Markdown version snapshots and Lex-style inline comparisons. Versions live inside the note itself — not in a sidecar file or plugin database — so history travels with the note (sync, git, backups) and agents or other tools can read it straight from the source file.
+Draftline is an Obsidian plugin for manual Markdown version snapshots and inline comparisons. Versions live inside the note itself — not in a sidecar file or plugin database — so history travels with the note (sync, git, backups) and agents or other tools can read it straight from the source file.
 
 ## Features
 
