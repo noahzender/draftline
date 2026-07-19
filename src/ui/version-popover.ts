@@ -16,6 +16,11 @@ export class VersionPopover {
 		this.dismissRegistered = true;
 	}
 
+	/** True when the popover is open and anchored to the given element. */
+	isOpenFor(anchor: HTMLElement): boolean {
+		return this.popoverEl !== null && this.anchorEl === anchor;
+	}
+
 	async openForActiveView(
 		anchor?: HTMLElement,
 		preloaded?: VersionedDocument | null,

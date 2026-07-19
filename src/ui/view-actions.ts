@@ -19,6 +19,11 @@ export function registerViewActions(plugin: DraftlinePlugin): ViewActionsControl
 		if (!enabled || attached.has(view)) return;
 		const actionEl = view.addAction('history', 'Draftline versions', (event) => {
 			event.preventDefault();
+			// Dismiss ignores mousedown on the anchor so click can toggle.
+			if (plugin.popover.isOpenFor(actionEl)) {
+				plugin.popover.close();
+				return;
+			}
 			void plugin.popover.openForActiveView(actionEl);
 		});
 		actionEl.addClass('draftline-view-action');
